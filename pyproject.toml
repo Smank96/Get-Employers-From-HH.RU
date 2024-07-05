@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "get-employers-from-hh-ru"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+packages = [{include = "get_employers_from_hh"}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+psycopg2 = "^2.9.9"
+pytest = "^8.2.2"
+requests = "^2.32.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
