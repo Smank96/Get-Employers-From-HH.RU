@@ -14,7 +14,7 @@ class HeadHunterAPI:
     def get_employers(self, keyword: str) -> list[dict]:
         """Подключается к api hh.ru и получает работодателей по ключевому слову."""
         self.url = 'https://api.hh.ru/employers'
-        self.params = {'text': keyword, 'page': 0, 'per_page': 10, 'only_with_vacancies': True}
+        self.params = {'text': keyword, 'page': 0, 'per_page': 10, 'only_with_vacancies': True, "area": "1"}
 
         while self.params.get('page') != 1:
             response = requests.get(self.url, headers=self.headers, params=self.params)
