@@ -1,0 +1,116 @@
+import psycopg2
+import re
+from src.read_config import read_config
+from src.utils import validate_salary
+
+
+class DBManager:
+    def __init__(self):
+        params = read_config()
+        self.dbconnect = psycopg2.connect(dbname=params.get('dbname'),
+                                          host=params.get('host'),
+                                          user=params.get('user'),
+                                          password=params.get('password'),
+                                          port=params.get('port'))
+        self.cursor = self.dbconnect.cursor()
+
+    def save_data_to_database(self, employers: list[dict], vacancies: list[dict]):
+        """Добавление данных в sql таблицы."""
+        employer_index = 0
+
+        for employer in employers:
+            # получаем данные из словаря employers.
+            employer_name = employer.get('name')
+            employer_url = employer.get('alternate_url')
+            vacancies_url = employer.get('vacancies_url')
+            open_vacancies = employer.get('open_vacancies')
+
+            # тело sql запроса
+            sql_query = (f"INSERT INTO employers (employer_name, employer_url, vacancies_url, open_vacancies) "
+                         f"VALUES ('{employer_name}', '{employer_url}', '{vacancies_url}', '{open_vacancies}')")
+
+            # выполняем запрос
+            self.cursor.execute(sql_query)
+            # коммитим запрос в бд.
+            self.dbconnect.commit()
+
+            employer_index += 1
+
+            for vacancy in vacancies:
+                # получаем данные из словаря employers.
+                vacancy_name = vacancy.get('name')
+                city = vacancy.get('area').get('name')
+                employer_id = employer_index
+                salary, currency = validate_salary(vacancy.get('salary'))
+                publication_date = vacancy.get('published_at')
+                vacancy_url = vacancy.get('alternate_url')
+                requirement = re.sub(r'<.*?>', '', vacancy.get('snippet').get('requirement')).replace("'a", " ")
+                responsibility = vacancy.get('snippet').get('responsibility')
+                required_experience = vacancy.get('experience').get('name')
+
+                # тело sql запроса
+                sql_query = (
+                    f"INSERT INTO vacancies (vacancy_name, city, employer_id, salary, currency, publication_date, "
+                    f"vacancy_url, requirement, responsibility, required_experience) "
+                    f"VALUES ('{vacancy_name}', '{city}', '{employer_id}', '{salary}', '{currency}', "
+                    f"'{publication_date}', '{vacancy_url}', '{requirement}', '{responsibility}', '{required_experience}')")
+
+                # выполняем запрос
+                self.cursor.execute(sql_query)
+                # коммитим запрос в бд.
+                self.dbconnect.commit()
+
+    def close_connection(self):
+        self.cursor.close()
+        self.dbconnect.close()
+
+    def get_companies_and_vacancies_count(self):
+        """Получает список всех компаний и количество вакансий у каждой компании."""
+        self.cursor.execute("SELECT employer_name, open_vacancies FROM employers")
+
+        result = self.cursor.fetchall()
+        for string in result:
+            employer, open_vacancies = string
+            print(f"Работодатель: {employer}, открытых вакансий: {open_vacancies}.")
+
+    def get_all_vacancies(self):
+        """Получает список всех вакансий с указанием названия компании,
+        названия вакансии и зарплаты и ссылки на вакансию."""
+        self.cursor.execute("SELECT employer_name, vacancy_name, salary, currency, vacancy_url FROM vacancies "
+                            "INNER JOIN employers USING(employer_id)")
+
+        result = self.cursor.fetchall()
+        for string in result:
+            employer, vacancy_name, salary, currency, vac_url = string
+            print(f"{employer}, {vacancy_name}, зарплата: {salary} {currency}, ссылка на вакансию: {vac_url}")
+
+    def get_avg_salary(self):
+        """Получает среднюю зарплату по вакансиям."""
+        self.cursor.execute("SELECT AVG(salary) AS AVERAGE_SALARY FROM vacancies")
+        result = self.cursor.fetchall()
+        avg_salary = round(result[0][0], 2)
+        print(f"Средняя зарплата по выбранным вакансиям: {avg_salary}")
+
+    def get_vacancies_with_higher_salary(self):
+        """Получает список всех вакансий, у которых зарплата выше средней по всем вакансиям."""
+        self.cursor.execute(f"SELECT DISTINCT vacancy_name, salary, currency FROM vacancies WHERE salary > "
+                            f"(SELECT AVG(salary) FROM vacancies) ORDER BY salary DESC")
+
+        result = self.cursor.fetchall()
+        for string in result:
+            vacancy_name, salary, currency = string
+            print(f"{vacancy_name}, зарплата: {salary} {currency}")
+
+    def get_vacancies_with_keyword(self, keywords: list):
+        """Получает список всех вакансий, в названии которых содержатся переданные в метод слова."""
+        # Форматирует ключевые слова в строку для sql запроса. Получается строка по типу: %word1% OR %word2%
+        word_string = " OR ".join(f"%{word}%" for word in keywords)
+
+        query = f"""SELECT vacancy_name, requirement, responsibility FROM vacancies 
+        WHERE requirement LIKE '{word_string}' or responsibility LIKE '{word_string}'"""
+
+        self.cursor.execute(query)
+        result = self.cursor.fetchall()
+        for string in result:
+            vacancy_name, requirement, responsibility = string
+            print(f"{vacancy_name}\nТребования: {requirement}\nОбязанности: {responsibility}\n--------------------")
