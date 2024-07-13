@@ -120,7 +120,8 @@ class DBManager:
             print(f"{employer}, {vacancy_name}, зарплата: {salary} {currency}, ссылка на вакансию: {vac_url}")
 
     def get_avg_salary(self):
-        """Получает среднюю зарплату по вакансиям."""
+        """Получает среднюю зарплату по вакансиям.
+        Из подсчёта средней зарплаты убраны вакансии с зп = 0."""
         self.cursor.execute("SELECT AVG(salary) AS AVERAGE_SALARY FROM vacancies WHERE salary > 0")
         result = self.cursor.fetchall()
         avg_salary = round(result[0][0], 2)
