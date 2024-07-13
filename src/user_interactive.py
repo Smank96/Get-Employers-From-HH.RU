@@ -23,7 +23,7 @@ def user_interactive():
     elif user_action == 4:
         dbmanager.get_vacancies_with_higher_salary()
     elif user_action == 5:
-        keyword = input("Введите ключевые слова для фильтрации вакансий: ").split()
+        keyword = input("Введите ключевые слова для фильтрации вакансий: ").lower().split()
         dbmanager.get_vacancies_with_keyword(keyword)
     else:
         print("Введено некорректное значение.")
