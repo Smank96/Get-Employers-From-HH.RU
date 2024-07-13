@@ -7,12 +7,46 @@ from src.utils import validate_salary
 class DBManager:
     def __init__(self):
         params = read_config()
-        self.dbconnect = psycopg2.connect(dbname=params.get('dbname'),
-                                          host=params.get('host'),
-                                          user=params.get('user'),
-                                          password=params.get('password'),
-                                          port=params.get('port'))
+        self.dbconnect = psycopg2.connect(**params)
         self.cursor = self.dbconnect.cursor()
+
+    def create_tables(self):
+        """Создание таблиц."""
+        sql_query = """
+            CREATE TABLE IF NOT EXISTS employers
+            (
+                employer_id serial PRIMARY KEY,
+                employer_name varchar,
+                employer_url varchar,
+                vacancies_url varchar,
+                open_vacancies int
+            );
+
+            CREATE TABLE IF NOT EXISTS vacancies
+            (
+                vacancy_id serial PRIMARY KEY,
+                vacancy_name varchar,
+                city varchar,
+                employer_id serial,
+                salary int,
+                currency varchar,
+                publication_date date,
+                vacancy_url varchar,
+                requirement text,
+                responsibility text,
+                required_experience varchar,
+                CONSTRAINT fk_vacancies_employers FOREIGN KEY(employer_id) REFERENCES employers(employer_id)
+            );"""
+
+        self.cursor.execute(sql_query)
+        self.dbconnect.commit()
+
+    def drop_tables(self):
+        sql_query = ("""DROP TABLE IF EXISTS employers CASCADE;
+        DROP TABLE IF EXISTS vacancies CASCADE;""")
+
+        self.cursor.execute(sql_query)
+        self.dbconnect.commit()
 
     def save_data_to_database(self, employers: list[dict], vacancies: list[dict]):
         """Добавление данных в sql таблицы."""
@@ -44,7 +78,8 @@ class DBManager:
                 salary, currency = validate_salary(vacancy.get('salary'))
                 publication_date = vacancy.get('published_at')
                 vacancy_url = vacancy.get('alternate_url')
-                requirement = re.sub(r'<.*?>', '', vacancy.get('snippet').get('requirement')).replace("'a", " ")
+                # re.sub - заменяет все теги по типу <highlighttext>, replace - заменяет апострофы в тексте на пробелы.
+                requirement = re.sub(r'<.*?>', '', vacancy.get('snippet').get('requirement')).replace("'", " ")
                 responsibility = vacancy.get('snippet').get('responsibility')
                 required_experience = vacancy.get('experience').get('name')
 
@@ -86,7 +121,7 @@ class DBManager:
 
     def get_avg_salary(self):
         """Получает среднюю зарплату по вакансиям."""
-        self.cursor.execute("SELECT AVG(salary) AS AVERAGE_SALARY FROM vacancies")
+        self.cursor.execute("SELECT AVG(salary) AS AVERAGE_SALARY FROM vacancies WHERE salary > 0")
         result = self.cursor.fetchall()
         avg_salary = round(result[0][0], 2)
         print(f"Средняя зарплата по выбранным вакансиям: {avg_salary}")
@@ -105,12 +140,13 @@ class DBManager:
         """Получает список всех вакансий, в названии которых содержатся переданные в метод слова."""
         # Форматирует ключевые слова в строку для sql запроса. Получается строка по типу: %word1% OR %word2%
         word_string = " OR ".join(f"%{word}%" for word in keywords)
-
-        query = f"""SELECT vacancy_name, requirement, responsibility FROM vacancies 
+        # тело sql запроса.
+        query = f"""SELECT DISTINCT vacancy_name, requirement, responsibility FROM vacancies 
         WHERE requirement LIKE '{word_string}' or responsibility LIKE '{word_string}'"""
-
+        # выполняем запрос.
         self.cursor.execute(query)
         result = self.cursor.fetchall()
+        # выводим результат на экран.
         for string in result:
             vacancy_name, requirement, responsibility = string
             print(f"{vacancy_name}\nТребования: {requirement}\nОбязанности: {responsibility}\n--------------------")
