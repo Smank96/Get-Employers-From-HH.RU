@@ -25,6 +25,8 @@ class HeadHunterAPI:
         return self.employers
 
     def get_vacancies_from_employer(self, vacancy_url: str, keyword: str) -> list[dict]:
+        """Принимает ссылку на вакансии и ключевое слово для фильтрации.
+        Возвращает список вакансий выбранного работодателя."""
         self.url = vacancy_url
         self.params = {'text': keyword, 'page': 0, 'per_page': 100}
 
